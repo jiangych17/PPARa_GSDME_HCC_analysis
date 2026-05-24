@@ -5,9 +5,9 @@ This repository contains custom R scripts used for computational analyses in the
 ## Scripts
 
 ### 01_bulk_RNAseq_GSEA_immune_deconvolution.R
-Performs bulk RNA-seq gene-set enrichment analysis using normalized FPKM/TPM expression matrices. Genes are ranked by log2FC, calculated as the difference between mean log2(expression + 1) in FILM and Non-FILM/control samples. The script generates GO cell death-related GSEA and KEGG GSEA results.
+Performs bulk RNA-seq gene-set enrichment analysis using normalized FPKM/TPM expression matrices. Genes are ranked by log2FC, calculated as the difference between mean log2(expression + 1) in FILM and Non-FILM/control samples. The script generates GO cell death-related GSEA and KEGG GSEA results. Human tissue samples were analyzed using xCell, MCPcounter, Quantiseq, and ImmunCellAI where applicable, whereas mouse tissue samples were analyzed using ImmunCellAI.
 
-### 02_GSE151530_scRNA_Fig2E_FigS5.R
+### 02_GSE151530_scRNA_Fig2_FigS5.R
 Reanalyzes the public HCC single-cell RNA-seq dataset GSE151530. This script generates analyses related to Fig. 2E-F and Fig. S5B-K, including quality control, doublet removal, cell-type annotation, malignant-cell pyroptosis scoring, PPAR-family expression, pseudobulk KEGG GSEA, and T-cell reclustering.
 
 ### 03_FigS20_CD45_scRNA_analysis_M1_M8.R
@@ -24,7 +24,8 @@ Analyzes mouse CD45+ tumor-infiltrating immune-cell scRNA-seq data. This script 
 ### Required metadata files
 - `sample_group.csv`: sample grouping information for the GSE151530 reanalysis.
 - `sample_info_FigS20.csv`: sample grouping information for the mouse CD45+ scRNA-seq analysis.
-- `bulk_sample_info.csv`: sample grouping information for the bulk RNA-seq analysis.
+- `bulk_sample_info_human.csv`: sample grouping information for the human bulk RNA-seq analysis.
+- `bulk_sample_info_mouse.csv`: sample grouping information for the mouse bulk RNA-seq analysis.
 
 ### Gene sets
 Gene sets used for GSEA and module-score analyses are provided in the `gene_sets/` folder where applicable.
@@ -32,6 +33,8 @@ Gene sets used for GSEA and module-score analyses are provided in the `gene_sets
 ## Notes
 
 These scripts generate analytical plots and source tables used for the indicated figures. Final figure assembly, schematic panels, and graphical layout were prepared separately.
+
+The ImmunCellAI analyses were performed using normalized expression matrices. The scripts export input matrices for ImmunCellAI and import returned ImmunCellAI results when available.
 
 ## Software
 
