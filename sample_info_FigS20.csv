@@ -1,0 +1,9 @@
+sample,group,batch,folder
+M1,Ctrl,batch1,filter_matrixM1
+M2,Ctrl,batch1,filter_matrixM2
+M3,Gsdme-KO,batch1,filter_matrixM3
+M4,Gsdme-KO,batch1,filter_matrixM4
+M5,GW7649,batch1,filter_matrixM5
+M6,GW7650,batch1,filter_matrixM6
+M7,Gsdme-KO + GW7647,batch1,filter_matrixM7
+M8,Gsdme-KO + GW7647,batch1,filter_matrixM8
