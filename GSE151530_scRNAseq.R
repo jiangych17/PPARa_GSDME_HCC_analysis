@@ -1,13 +1,6 @@
 ############################################################
-# Figure S5 scRNA-seq analysis for GSE151530 HCC samples
+# ScRNA-seq analysis for GSE151530 HCC samples
 # Revised version for manuscript upload
-# Key changes from the original exploratory script:
-#   1) Group names are prognosis-based: Favorable prognosis vs Poor prognosis
-#   2) Added nCount_RNA filtering
-#   3) Added per-sample doublet removal using DoubletFinder
-#   4) Removed analyses not shown in Figure S5, e.g. CopyKAT/inferCNV
-#   5) Added DEG-derived marker plot for Fig. S5B and T-cell DEG heatmap for Fig. S5D
-#   6) Kept the original major Seurat parameters unless there was an obvious issue
 ############################################################
 
 rm(list = ls())
@@ -34,10 +27,10 @@ suppressPackageStartupMessages({
 })
 
 # ===================== 0. User-defined paths and parameters =====================
-workdir <- "path/to/GSE151530_analysis"
+workdir <- "."
 setwd(workdir)
 
-outdir <- "Figure_S5_scRNA_results"
+outdir <- "Figure_scRNA_results"
 dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
 dir.create(file.path(outdir, "QC"), showWarnings = FALSE, recursive = TRUE)
 dir.create(file.path(outdir, "Global"), showWarnings = FALSE, recursive = TRUE)
@@ -54,8 +47,8 @@ poor_dir_group <- "Poor prognosis"
 
 sample_group_file <- "sample_group.csv"       # optional but strongly recommended
 annot_file <- "GSE151530_Info.csv"            # columns should include cell/barcode and type/cell_type
-pyro_gmt_file <- "GOBP_PYROPTOSIS.v2024.1.Hs.gmt"
-kegg_gmt_file <- "c2.cp.kegg_legacy.v2024.1.Hs.symbols.gmt"
+pyro_gmt_file <- "GOBP_PYROPTOSIS.gmt"
+kegg_gmt_file <- "kegg.gmt"
 
 # QC parameters: original parameters retained, with nCount_RNA filter added.
 min_features <- 200
@@ -90,10 +83,13 @@ canonical_markers <- c(
 
 # ===================== 1. Utility functions =====================
 read_count_csv <- function(path) {
-  x <- read.csv(path, row.names = 1, check.names = FALSE)
-  x <- as.matrix(x)
-  storage.mode(x) <- "numeric"
-  return(x)
+  x <- data.table::fread(path, data.table = FALSE, check.names = FALSE)
+  genes <- x[[1]]
+  x[[1]] <- NULL
+  mat <- as.matrix(x)
+  storage.mode(mat) <- "numeric"
+  rownames(mat) <- genes
+  Matrix::Matrix(mat, sparse = TRUE)
 }
 
 extract_gsm <- function(fname) {
@@ -351,7 +347,7 @@ p_marker_dot <- DotPlot(sce, features = markers_use, group.by = "cell_type") +
   ggtitle("Canonical marker expression by cell type")
 save_pdf(file.path(outdir, "Global", "canonical_marker_dotplot_by_celltype.pdf"), p_marker_dot, width = 12, height = 6)
 
-# Fig. S5B: marker genes identified by differential expression analysis for cell-type annotation.
+# marker genes identified by differential expression analysis for cell-type annotation.
 # This is separated from the canonical marker dotplot above, because the figure legend describes DEG-derived markers.
 DefaultAssay(sce) <- "RNA"
 Idents(sce) <- sce$cell_type
@@ -378,7 +374,7 @@ if (nrow(celltype_top_markers) > 0) {
   save_pdf(file.path(outdir, "Global", "FigS5B_DEG_marker_dotplot_by_celltype.pdf"),
            p_s5b_deg_marker, width = 12, height = 6)
 } else {
-  warning("No significant cell-type DEG markers found for Fig. S5B under the current thresholds.")
+  warning("No significant cell-type DEG markers found under the current thresholds.")
 }
 
 # Epithelial score for malignant cell validation.
@@ -411,7 +407,7 @@ p_celltype_stack <- ggplot(df_celltype, aes(x = Group, y = Percent, fill = CellT
   theme(axis.text.x = element_text(angle = 30, hjust = 1))
 save_pdf(file.path(outdir, "Global", "FigS5_celltype_composition_by_prognosis.pdf"), p_celltype_stack, width = 8, height = 6)
 
-# ===================== 6. HCC/malignant cell analyses: pyroptosis, PPAR family, GSEA =====================
+# ===================== 6. malignant cell analyses: pyroptosis, PPAR family, GSEA =====================
 if (!"Malignant cells" %in% unique(sce$cell_type)) {
   stop("No 'Malignant cells' found after annotation harmonization. Please check cell_type labels in GSE151530_Info.csv.")
 }
@@ -681,7 +677,7 @@ tcell_cluster_markers <- FindAllMarkers(
 )
 write.csv(tcell_cluster_markers, file.path(outdir, "T_cells", "T_cell_cluster_markers.csv"), row.names = FALSE)
 
-# Fig. S5D: heatmap of differentially expressed genes among T cell subsets.
+# heatmap of differentially expressed genes among T cell subsets.
 tcell_top_heatmap_markers <- tcell_cluster_markers |>
   dplyr::filter(p_val_adj < 0.05) |>
   dplyr::group_by(cluster) |>
@@ -717,7 +713,7 @@ if (nrow(tcell_top_heatmap_markers) > 0) {
   )
   dev.off()
 } else {
-  warning("No significant T cell subset DEG markers found for Fig. S5D under the current thresholds.")
+  warning("No significant T cell subset DEG markers found under the current thresholds.")
 }
 
 # Save final objects.
