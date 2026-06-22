@@ -1,7 +1,5 @@
 ############################################################
-# Figure S20 CD45+ immune-cell scRNA-seq analysis
-# M1-M8 samples only; tumor-cell branch / CopyKAT / inferCNV removed
-# Outputs: Fig. S20B-N related plots and source tables
+# CD45+ immune-cell scRNA-seq analysis
 ############################################################
 
 rm(list = ls())
@@ -46,42 +44,41 @@ df_rds_all      <- file.path(outdir, "sce_after_DoubletFinder_M1_M8_geneSymbol.r
 singlet_rds_all <- file.path(outdir, "sce_singlet_M1_M8_geneSymbol.rds")
 cd45_rds_final  <- file.path(outdir, "sce_cd45_harmony_sample_annotated_M1_M8.qs")
 
-# Input folder convention. If your folders are named M1, M2, ... instead of filter_matrixM1, edit here.
-sample_dirs <- paste0("filter_matrixM", 1:8)
-names(sample_dirs) <- paste0("M", 1:8)
-
-sample_order <- paste0("M", 1:8)
-cd45_samples <- sample_order
-
 # Optional sample metadata file; recommended for manuscript upload.
 # Format: sample,folder,group,batch
 # If absent, default group mapping below is used.
 sample_info_file <- "sample_info_FigS20.csv"
 
-if (file.exists(sample_info_file)) {
-  sample_info <- read.csv(sample_info_file, stringsAsFactors = FALSE, check.names = FALSE)
-  stopifnot(all(c("sample", "folder", "group") %in% colnames(sample_info)))
-  if (!"batch" %in% colnames(sample_info)) sample_info$batch <- "batch1"
-  sample_dirs <- sample_info$folder
-  names(sample_dirs) <- sample_info$sample
-  sample_order <- sample_info$sample
-  cd45_samples <- sample_info$sample
-  sample_group_map <- setNames(sample_info$group, sample_info$sample)
-  sample_batch_map <- setNames(sample_info$batch, sample_info$sample)
-} else {
-  message("sample_info_FigS20.csv not found. Using default M1-M8 mapping. Please verify group labels.")
-  sample_group_map <- c(
-    "M1" = "Ctrl + anti-PD-1",
-    "M2" = "Ctrl + anti-PD-1",
-    "M3" = "GW7647 + anti-PD-1",
-    "M4" = "GW7647 + anti-PD-1",
-    "M5" = "Gsdme-KO + anti-PD-1",
-    "M6" = "Gsdme-KO + anti-PD-1",
-    "M7" = "Gsdme-KO + GW7647 + anti-PD-1",
-    "M8" = "Gsdme-KO + GW7647 + anti-PD-1"
+if (!file.exists(sample_info_file)) {
+  stop(
+    "sample_info_FigS20.csv not found. ",
+    "Please provide a sample metadata file with columns: sample, folder, group. ",
+    "Optional column: batch."
   )
-  sample_batch_map <- setNames(rep("batch1", length(sample_order)), sample_order)
 }
+
+sample_info <- read.csv(sample_info_file, stringsAsFactors = FALSE, check.names = FALSE)
+
+required_cols <- c("sample", "folder", "group")
+if (!all(required_cols %in% colnames(sample_info))) {
+  stop(
+    "sample_info_FigS20.csv must contain columns: ",
+    paste(required_cols, collapse = ", ")
+  )
+}
+
+if (!"batch" %in% colnames(sample_info)) {
+  sample_info$batch <- "batch1"
+}
+
+sample_dirs <- sample_info$folder
+names(sample_dirs) <- sample_info$sample
+
+sample_order <- sample_info$sample
+cd45_samples <- sample_info$sample
+
+sample_group_map <- setNames(sample_info$group, sample_info$sample)
+sample_batch_map <- setNames(sample_info$batch, sample_info$sample)
 
 group_order <- unique(unname(sample_group_map[sample_order]))
 
@@ -388,7 +385,7 @@ saveRDS(sce_all, singlet_rds_all)
 qs::qsave(sce_all, file.path(outdir, "sce_singlet_M1_M8_geneSymbol.qs"), nthreads = 8)
 
 # =========================
-# 4. CD45+ global immune-cell analysis: Fig. S20B-C
+# 4. CD45+ global immune-cell analysis
 # =========================
 sce_cd45 <- subset(sce_all, subset = sample %in% cd45_samples)
 sce_cd45 <- join_if_needed(sce_cd45, assay = "RNA")
@@ -445,7 +442,7 @@ plot_composition(sce_cd45@meta.data, "celltype_major", file.path(outdir, "plots"
 qs::qsave(sce_cd45, cd45_rds_final, nthreads = 8)
 
 # =========================
-# 5. T-cell subset analysis: Fig. S20D-F
+# 5. T-cell subset analysis
 # =========================
 sce_tnk <- subset(sce_cd45, subset = celltype_major == "T_NK")
 sce_tnk <- join_if_needed(sce_tnk, assay = "RNA")
@@ -520,7 +517,7 @@ plot_composition(sce_t@meta.data, "t_subtype", file.path(outdir, "plots", "T_bra
 qs::qsave(sce_t, file.path(outdir, "sce_T_cells_reclustered.qs"), nthreads = 8)
 
 # =========================
-# 6. TAM analysis: Fig. S20G-K
+# 6. TAM analysis
 # =========================
 sce_myeloid <- subset(sce_cd45, subset = celltype_major == "Myeloid_TAM")
 sce_myeloid <- join_if_needed(sce_myeloid, assay = "RNA")
@@ -629,7 +626,7 @@ plot_composition(sce_tam@meta.data, "tam_subtype", file.path(outdir, "plots", "T
 qs::qsave(sce_tam, file.path(outdir, "sce_TAM_reclustered.qs"), nthreads = 8)
 
 # =========================
-# 7. DC subset analysis: Fig. S20L-N
+# 7. DC subset analysis
 # =========================
 sce_dc <- subset(sce_cd45, subset = celltype_major == "DC")
 sce_dc <- join_if_needed(sce_dc, assay = "RNA")
