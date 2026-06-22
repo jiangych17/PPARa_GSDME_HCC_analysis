@@ -1,6 +1,5 @@
 ############################################################
 # ScRNA-seq analysis for GSE151530 HCC samples
-# Revised version for manuscript upload
 ############################################################
 
 rm(list = ls())
@@ -330,7 +329,35 @@ barcodes_annot <- gsub("-[0-9]+$", "", barcodes_annot)
 match_idx <- match(barcodes_sce, barcodes_annot)
 sce$cell_type <- annot_tbl[[type_col]][match_idx]
 
-write.csv(table(is.na(sce$cell_type)), file.path(outdir, "Global", "cell_type_annotation_NA_table.csv"))
+## Check annotation matching rate before removing unmatched cells
+na_rate <- mean(is.na(sce$cell_type))
+
+write.csv(
+  data.frame(
+    total_cells = ncol(sce),
+    matched_cells = sum(!is.na(sce$cell_type)),
+    unmatched_cells = sum(is.na(sce$cell_type)),
+    unmatched_rate = na_rate
+  ),
+  file.path(outdir, "Global", "cell_type_annotation_match_summary.csv"),
+  row.names = FALSE
+)
+
+write.csv(
+  as.data.frame(table(is.na(sce$cell_type))),
+  file.path(outdir, "Global", "cell_type_annotation_NA_table.csv"),
+  row.names = FALSE
+)
+
+message("Cell type annotation unmatched rate: ", round(na_rate * 100, 2), "%")
+
+if (na_rate > 0.2) {
+  stop(
+    "More than 20% cells failed cell-type annotation matching. ",
+    "Please check barcode format between Seurat object and GSE151530_Info.csv."
+  )
+}
+
 # Remove cells without reference annotation or labeled unclassified.
 sce <- subset(sce, subset = !is.na(cell_type) & cell_type != "unclassified")
 
@@ -438,7 +465,12 @@ if (file.exists(pyro_gmt_file)) {
       stat_compare_means(method = "wilcox.test") +
       labs(title = "Pyroptosis score in HCC cells", x = NULL, y = "Mean pyroptosis score per sample") +
       theme(axis.text.x = element_text(angle = 25, hjust = 1), legend.position = "none")
-    save_pdf(file.path(outdir, "HCC_cells", "pyroptosis_score_HCC_cells_by_prognosis.pdf"), p_pyro, width = 5, height = 5)
+  save_pdf(
+  file.path(outdir, "HCC_cells", "pyroptosis_score_HCC_cells_by_prognosis.pdf"),
+  p_pyro,
+  width = 5,
+  height = 5
+)
   } else {
     warning("Too few pyroptosis genes found in the HCC cell expression matrix. Skipped pyroptosis scoring.")
   }
@@ -727,5 +759,3 @@ if (nrow(tcell_top_heatmap_markers) > 0) {
 saveRDS(sce, file.path(outdir, "sce_global_FigureS5_final.rds"))
 saveRDS(sce_hcc, file.path(outdir, "sce_HCC_cells_FigureS5_final.rds"))
 saveRDS(sce_t, file.path(outdir, "sce_T_cells_FigureS5_final.rds"))
-
-message("Figure S5 scRNA-seq analysis completed. Results saved to: ", outdir)
