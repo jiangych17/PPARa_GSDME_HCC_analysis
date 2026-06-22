@@ -84,12 +84,16 @@ canonical_markers <- c(
 # ===================== 1. Utility functions =====================
 read_count_csv <- function(path) {
   x <- data.table::fread(path, data.table = FALSE, check.names = FALSE)
-  genes <- x[[1]]
+  genes <- as.character(x[[1]])
   x[[1]] <- NULL
+
   mat <- as.matrix(x)
   storage.mode(mat) <- "numeric"
-  rownames(mat) <- genes
-  Matrix::Matrix(mat, sparse = TRUE)
+
+  rownames(mat) <- make.unique(genes)
+
+  mat <- Matrix::Matrix(mat, sparse = TRUE)
+  return(mat)
 }
 
 extract_gsm <- function(fname) {
@@ -193,8 +197,11 @@ if (file.exists(sample_group_file)) {
 }
 
 # ===================== 3. Read count matrices and perform QC/doublet filtering =====================
-filenames_favorable <- list.files(favorable_dir, full.names = FALSE)
-filenames_poor <- list.files(poor_dir, full.names = FALSE)
+filenames_favorable <- list.files(favorable_dir, pattern = "\\.csv$", full.names = FALSE)
+filenames_poor <- list.files(poor_dir, pattern = "\\.csv$", full.names = FALSE)
+
+if (length(filenames_favorable) == 0) stop("No CSV count matrices found in: ", favorable_dir)
+if (length(filenames_poor) == 0) stop("No CSV count matrices found in: ", poor_dir)
 
 obj_list_favorable <- lapply(
   filenames_favorable,
@@ -290,7 +297,7 @@ sce <- FindClusters(sce, resolution = global_resolution)
 p_tsne_group <- DimPlot(sce, reduction = "tsne", group.by = "prognosis_group",
                         cols = group_cols, label = FALSE) +
   ggtitle("tSNE by prognosis group") + theme(plot.title = element_text(hjust = 0.5))
-save_pdf(file.path(outdir, "Global", "FigS5_tsne_by_prognosis_group.pdf"), p_tsne_group, width = 7, height = 6)
+save_pdf(file.path(outdir, "Global", "tsne_by_prognosis_group.pdf"), p_tsne_group, width = 7, height = 6)
 
 p_umap_group <- DimPlot(sce, reduction = "umap", group.by = "prognosis_group",
                         cols = group_cols, label = FALSE) +
@@ -334,7 +341,7 @@ sce$cell_type <- factor(sce$cell_type)
 
 p_tsne_celltype <- DimPlot(sce, reduction = "tsne", group.by = "cell_type", label = TRUE, repel = TRUE) +
   ggtitle("tSNE by cell type") + theme(plot.title = element_text(hjust = 0.5))
-save_pdf(file.path(outdir, "Global", "FigS5_tsne_by_cell_type.pdf"), p_tsne_celltype, width = 8, height = 7)
+save_pdf(file.path(outdir, "Global", "tsne_by_cell_type.pdf"), p_tsne_celltype, width = 8, height = 7)
 
 p_umap_celltype <- DimPlot(sce, reduction = "umap", group.by = "cell_type", label = TRUE, repel = TRUE) +
   ggtitle("UMAP by cell type") + theme(plot.title = element_text(hjust = 0.5))
@@ -358,7 +365,7 @@ celltype_markers <- FindAllMarkers(
   min.pct = 0.25,
   logfc.threshold = 0.25
 )
-write.csv(celltype_markers, file.path(outdir, "Global", "FigS5B_celltype_DEG_markers.csv"), row.names = FALSE)
+write.csv(celltype_markers, file.path(outdir, "Global", "B_celltype_DEG_markers.csv"), row.names = FALSE)
 
 celltype_top_markers <- celltype_markers |>
   dplyr::filter(p_val_adj < 0.05) |>
@@ -371,7 +378,7 @@ if (nrow(celltype_top_markers) > 0) {
   p_s5b_deg_marker <- DotPlot(sce, features = unique(celltype_top_markers$gene), group.by = "cell_type") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     ggtitle("DEG-derived marker genes for cell-type annotation")
-  save_pdf(file.path(outdir, "Global", "FigS5B_DEG_marker_dotplot_by_celltype.pdf"),
+  save_pdf(file.path(outdir, "Global", "B_DEG_marker_dotplot_by_celltype.pdf"),
            p_s5b_deg_marker, width = 12, height = 6)
 } else {
   warning("No significant cell-type DEG markers found under the current thresholds.")
@@ -383,7 +390,7 @@ sce <- AddModuleScore(sce, features = list(epi_use), name = "EpithelialScore")
 p_epi_tsne <- FeaturePlot(sce, features = "EpithelialScore1", reduction = "tsne",
                           cols = c("grey90", "orange", "red"), pt.size = 0.5) +
   ggtitle("Epithelial score")
-save_pdf(file.path(outdir, "Global", "FigS5_epithelial_score_tsne.pdf"), p_epi_tsne, width = 7, height = 6)
+save_pdf(file.path(outdir, "Global", "epithelial_score_tsne.pdf"), p_epi_tsne, width = 7, height = 6)
 
 p_epi_vln <- VlnPlot(sce, features = "EpithelialScore1", group.by = "cell_type", pt.size = 0) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
@@ -405,7 +412,7 @@ p_celltype_stack <- ggplot(df_celltype, aes(x = Group, y = Percent, fill = CellT
   theme_bw() +
   labs(title = "Cell type composition by prognosis group", x = NULL, y = "Cell percentage (%)") +
   theme(axis.text.x = element_text(angle = 30, hjust = 1))
-save_pdf(file.path(outdir, "Global", "FigS5_celltype_composition_by_prognosis.pdf"), p_celltype_stack, width = 8, height = 6)
+save_pdf(file.path(outdir, "Global", "celltype_composition_by_prognosis.pdf"), p_celltype_stack, width = 8, height = 6)
 
 # ===================== 6. malignant cell analyses: pyroptosis, PPAR family, GSEA =====================
 if (!"Malignant cells" %in% unique(sce$cell_type)) {
@@ -431,7 +438,7 @@ if (file.exists(pyro_gmt_file)) {
       stat_compare_means(method = "wilcox.test") +
       labs(title = "Pyroptosis score in HCC cells", x = NULL, y = "Mean pyroptosis score per sample") +
       theme(axis.text.x = element_text(angle = 25, hjust = 1), legend.position = "none")
-    save_pdf(file.path(outdir, "HCC_cells", "FigS5_pyroptosis_score_HCC_cells_by_prognosis.pdf"), p_pyro, width = 5, height = 5)
+    save_pdf(file.path(outdir, "HCC_cells", "pyroptosis_score_HCC_cells_by_prognosis.pdf"), p_pyro, width = 5, height = 5)
   } else {
     warning("Too few pyroptosis genes found in the HCC cell expression matrix. Skipped pyroptosis scoring.")
   }
@@ -445,7 +452,7 @@ if (length(ppar_genes) > 0) {
   p_ppar_dot <- DotPlot(sce, features = ppar_genes, group.by = "cell_type") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     ggtitle("PPAR family expression across cell types")
-  save_pdf(file.path(outdir, "Global", "FigS5_PPAR_family_dotplot_by_celltype.pdf"), p_ppar_dot, width = 8, height = 5)
+  save_pdf(file.path(outdir, "Global", "PPAR_family_dotplot_by_celltype.pdf"), p_ppar_dot, width = 8, height = 5)
 }
 
 for (gene in ppar_genes) {
@@ -460,7 +467,7 @@ for (gene in ppar_genes) {
     stat_compare_means(method = "wilcox.test") +
     labs(title = paste0(gene, " expression in HCC cells"), x = NULL, y = "Mean expression per sample") +
     theme(axis.text.x = element_text(angle = 25, hjust = 1), legend.position = "none")
-  save_pdf(file.path(outdir, "HCC_cells", paste0("FigS5_", gene, "_expression_HCC_cells_by_prognosis.pdf")), p_gene, width = 5, height = 5)
+  save_pdf(file.path(outdir, "HCC_cells", paste0("Fig", gene, "_expression_HCC_cells_by_prognosis.pdf")), p_gene, width = 5, height = 5)
 }
 
 # Differential expression and GSEA in HCC cells: favorable versus poor prognosis.
@@ -548,7 +555,7 @@ if (file.exists(kegg_gmt_file)) {
 
   p_kegg_dot <- dotplot(gsea_kegg, showCategory = 20) +
     ggtitle("KEGG GSEA in HCC cells: Favorable vs Poor prognosis")
-  save_pdf(file.path(outdir, "GSEA", "FigS5_KEGG_GSEA_dotplot_HCC_cells.pdf"), p_kegg_dot, width = 9, height = 7)
+  save_pdf(file.path(outdir, "GSEA", "KEGG_GSEA_dotplot_HCC_cells.pdf"), p_kegg_dot, width = 9, height = 7)
 
   ppar_term <- safe_find_ppar_term(gsea_kegg)
   if (!is.na(ppar_term)) {
@@ -561,7 +568,7 @@ if (file.exists(kegg_gmt_file)) {
       res_df$p.adjust[idx]
     )
     p_ppar_gsea <- gseaplot2(gsea_kegg, geneSetID = ppar_term, title = title_txt)
-    save_pdf(file.path(outdir, "GSEA", "FigS5_PPAR_pathway_GSEA_HCC_cells.pdf"), p_ppar_gsea, width = 6, height = 5)
+    save_pdf(file.path(outdir, "GSEA", "PPAR_pathway_GSEA_HCC_cells.pdf"), p_ppar_gsea, width = 6, height = 5)
   } else {
     warning("No PPAR-related pathway found in KEGG GSEA results.")
   }
@@ -602,7 +609,7 @@ sce_t <- FindClusters(sce_t, resolution = tcell_resolution)
 
 p_t_tsne_cluster <- DimPlot(sce_t, reduction = "tsne", group.by = "seurat_clusters", label = TRUE, repel = TRUE) +
   ggtitle("tSNE by T cell cluster") + theme(plot.title = element_text(hjust = 0.5))
-save_pdf(file.path(outdir, "T_cells", "FigS5_T_cell_tsne_by_cluster.pdf"), p_t_tsne_cluster, width = 7, height = 6)
+save_pdf(file.path(outdir, "T_cells", "T_cell_tsne_by_cluster.pdf"), p_t_tsne_cluster, width = 7, height = 6)
 
 # T cell marker genes.
 tcell_marker_genes <- intersect(c(
@@ -614,7 +621,7 @@ tcell_marker_genes <- intersect(c(
 p_t_marker_dot <- DotPlot(sce_t, features = tcell_marker_genes, group.by = "seurat_clusters") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   ggtitle("Representative marker genes for T cell clusters")
-save_pdf(file.path(outdir, "T_cells", "FigS5_T_cell_marker_dotplot.pdf"), p_t_marker_dot, width = 11, height = 5)
+save_pdf(file.path(outdir, "T_cells", "T_cell_marker_dotplot.pdf"), p_t_marker_dot, width = 11, height = 5)
 
 p_t_marker_vln <- VlnPlot(sce_t, features = tcell_marker_genes, group.by = "seurat_clusters",
                           stack = TRUE, flip = TRUE, pt.size = 0) +
@@ -625,9 +632,9 @@ save_pdf(file.path(outdir, "T_cells", "T_cell_marker_vlnplot.pdf"), p_t_marker_v
 av_t <- AverageExpression(sce_t, group.by = "seurat_clusters", assays = "RNA", slot = "data")
 av_mat_t <- as.data.frame(av_t$RNA)
 TCSS_scores <- TCSS_Calculate(av_mat_t)
-write.csv(TCSS_scores, file.path(outdir, "T_cells", "FigS5_TCSS_scores_by_T_cell_cluster.csv"))
+write.csv(TCSS_scores, file.path(outdir, "T_cells", "TCSS_scores_by_T_cell_cluster.csv"))
 
-pdf(file.path(outdir, "T_cells", "FigS5_TCSS_heatmap_by_T_cell_cluster.pdf"), width = 7, height = 6)
+pdf(file.path(outdir, "T_cells", "TCSS_heatmap_by_T_cell_cluster.pdf"), width = 7, height = 6)
 pheatmap(TCSS_scores, cluster_rows = FALSE, cluster_cols = FALSE,
          display_numbers = TRUE, main = "T Cell State Scores by cluster")
 dev.off()
@@ -635,7 +642,7 @@ dev.off()
 # T cell subset proportions by prognosis group.
 tab_t <- table(sce_t$seurat_clusters, sce_t$prognosis_group)
 tab_t_prop <- prop.table(tab_t, margin = 2)
-write.csv(as.data.frame(tab_t_prop), file.path(outdir, "T_cells", "FigS5_T_cell_cluster_proportion_by_group.csv"), row.names = FALSE)
+write.csv(as.data.frame(tab_t_prop), file.path(outdir, "T_cells", "T_cell_cluster_proportion_by_group.csv"), row.names = FALSE)
 
 df_t_prop <- melt(tab_t_prop)
 colnames(df_t_prop) <- c("T_cell_cluster", "Group", "Proportion")
@@ -646,7 +653,7 @@ p_t_stack <- ggplot(df_t_prop, aes(x = Group, y = Proportion, fill = T_cell_clus
   theme_bw() +
   labs(title = "T cell subset proportions by prognosis group", x = NULL, y = "Proportion") +
   theme(axis.text.x = element_text(angle = 25, hjust = 1))
-save_pdf(file.path(outdir, "T_cells", "FigS5_T_cell_subset_proportions_by_prognosis.pdf"), p_t_stack, width = 6, height = 5)
+save_pdf(file.path(outdir, "T_cells", "T_cell_subset_proportions_by_prognosis.pdf"), p_t_stack, width = 6, height = 5)
 
 # More conservative per-sample T cell proportion table for statistics.
 t_per_sample <- sce_t@meta.data |>
@@ -697,9 +704,9 @@ if (nrow(tcell_top_heatmap_markers) > 0) {
   avg_t_marker_expr <- as.matrix(avg_t_marker_expr)
   avg_t_marker_expr_z <- t(scale(t(avg_t_marker_expr)))
   avg_t_marker_expr_z[is.na(avg_t_marker_expr_z)] <- 0
-  write.csv(avg_t_marker_expr_z, file.path(outdir, "T_cells", "FigS5D_T_cell_subset_DEG_heatmap_matrix_zscore.csv"))
+  write.csv(avg_t_marker_expr_z, file.path(outdir, "T_cells", "T_cell_subset_DEG_heatmap_matrix_zscore.csv"))
 
-  pdf(file.path(outdir, "T_cells", "FigS5D_T_cell_subset_DEG_heatmap.pdf"), width = 7, height = 10)
+  pdf(file.path(outdir, "T_cells", "T_cell_subset_DEG_heatmap.pdf"), width = 7, height = 10)
   pheatmap(
     avg_t_marker_expr_z,
     cluster_rows = TRUE,
